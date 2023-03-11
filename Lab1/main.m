@@ -40,16 +40,13 @@ function main()
     xticks(sizes);
     xlabel('Matrix size (k x k)');
     ylabel('Time [s]');
-
-    title('Classic + Binet matrix multiplication');
-    legend()
     legend('Location', 'northwest');
 
     grid on;
     set(gca, 'XMinorGrid', 'off', 'YMinorGrid', 'off');
 
     hold off;
-    saveas(fig, 'Time results.pdf');
+    saveas(fig, 'Time results.svg');
 
     % floating-point operations plots
     for i = 1:1:size(l, 2)
@@ -61,15 +58,13 @@ function main()
     xticks(sizes);
     xlabel('Matrix size (k x k)');
     ylabel('Floating-points operations');
-
-    title('Classic + Binet matrix multiplication');
     legend('Location', 'northwest');
 
     grid on;
     set(gca, 'XMinorGrid', 'off', 'YMinorGrid', 'off');
 
     hold off;
-    saveas(fig, 'Float results.pdf');
+    saveas(fig, 'Float results.svg');
 end
 
 % Function for measuring matrix multiplication time
