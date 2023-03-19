@@ -6,7 +6,7 @@ function main()
     max_size = 11;
     num_rep = 5;
     n = max_size - min_size + 1;
-    l = [3, 6, 9];
+    l = [6];
 
     global op;
     global op_index;
@@ -16,9 +16,9 @@ function main()
     op_index = 1;
 
     % colors for plots
-    newcolors = [1, 0, 0
+    newcolors = [0, 0, 1
                  0, 1, 0
-                 0, 0, 1];
+                 1, 0, 0];
 
     colororder(newcolors)
 
@@ -40,7 +40,6 @@ function main()
     xticks(sizes);
     xlabel('Matrix size (k x k)');
     ylabel('Time [s]');
-    legend('Location', 'northwest');
 
     grid on;
     set(gca, 'XMinorGrid', 'off', 'YMinorGrid', 'off');
@@ -58,7 +57,6 @@ function main()
     xticks(sizes);
     xlabel('Matrix size (k x k)');
     ylabel('Floating-points operations');
-    legend('Location', 'northwest');
 
     grid on;
     set(gca, 'XMinorGrid', 'off', 'YMinorGrid', 'off');
@@ -67,7 +65,7 @@ function main()
     saveas(fig, 'Float results.svg');
 end
 
-% Function for measuring matrix multiplication time
+% Function for measuring matrix inversion time
 function [sizes, results] = timer(min_size, max_size, l, multiplier, num_rep, seed)
 
     global index;
@@ -81,25 +79,63 @@ function [sizes, results] = timer(min_size, max_size, l, multiplier, num_rep, se
     size = min_size;
 
     while size <= max_size
-        multiplication_time = [];
+        inversion_time = [];
 
         for i = 1:num_rep
             A = rand(size);
-            B = rand(size);
 
             tic
-            C = matmul(A, B, l);
-            multiplication_time(end+1) = toc;
-
-            assert(all(all(abs(C - (A*B)) < 1e-8)));
+            B = inversion(A, l);
+            inversion_time(end+1) = toc;
+            
+            if size <= 256
+                assert(all(all(abs(eye(size) - (A*B)) < 1e-3)));
+            end
         end
 
-        results(end+1, :) = [mean(multiplication_time), std(multiplication_time)];
+        results(end+1, :) = [mean(inversion_time), std(inversion_time)];
 
         sizes(end+1) = size;
         size = size * multiplier;
 
         index = index + 1;
+    end
+end
+
+% Matrix inversion function
+function B = inversion(A, l)
+
+    global op;
+    global op_index;
+    global index;
+
+    n = size(A, 1);
+
+    if n == 1
+        B = 1 / A;
+
+        op(index, op_index) = op(index, op_index) + 1;
+    else
+        A11 = A(1:n/2, 1:n/2);
+        A12 = A(1:n/2, n/2+1:end);
+        A21 = A(n/2+1:end, 1:n/2);
+        A22 = A(n/2+1:end, n/2+1:end);
+
+        A11_inv = inversion(A11, l);
+        A12_inv = inversion(A12, l);
+
+        S22 = A22 - matmul(matmul(A21, A11_inv, l), A12, l);
+        S22_inv = inversion(S22, l);
+
+        B11 = matmul(A11_inv, eye(n/2) + matmul(matmul(matmul(A12, S22_inv, l), A21, l), A11_inv, l), l);
+        B12 = -matmul(matmul(A11_inv, A12, l), S22_inv, l);
+        B21 = -matmul(matmul(S22_inv, A21, l), A11_inv, l);
+        B22 = S22_inv;
+
+        B = [B11, B12;
+             B21, B22];
+
+        op(index, op_index) = op(index, op_index) + 4*(n/2)*(n/2);
     end
 end
 
@@ -120,8 +156,6 @@ function C = classic_matmul(A, B)
     global op_index;
     global index;
 
-    new_op = 0; % number of floating-point operations
-
     [n, m] = size(A);
     [m, k] = size(B);
     C = zeros(n, k);
@@ -132,14 +166,13 @@ function C = classic_matmul(A, B)
 
             for c = 1:1:m % columns in A and rows in B
                 sum = sum + A(a, c) * B(c, b);
-                new_op = new_op + 2; % one addition and one multiplication
             end
 
             C(a, b) = sum;
         end
     end
 
-    op(index, op_index) = op(index, op_index) + new_op;
+    op(index, op_index) = op(index, op_index) + 2*n*k*m;
 end
 
 % Binet matrix recursive multiplication
