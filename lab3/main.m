@@ -112,40 +112,36 @@ end
 % recursive LU factorization
 function [L, U] = LU_recursive(A, l)
 
-    % global op;
-    % global op_index;
-    % global index;
+    global op;
+    global op_index;
+    global index;
 
     n = size(A, 1);
     
     if n == 1
-        
         L = [1];
         U = [A];
-
-        % op(index, op_index) = op(index, op_index) + 1;
-
     else
+        A11 = A(1:fix(n/2), 1:fix(n/2));
+        A12 = A(1:fix(n/2), fix(n/2)+1:end);
+        A21 = A(fix(n/2)+1:end, 1:fix(n/2));
+        A22 = A(fix(n/2)+1:end, fix(n/2)+1:end);
+    
+        [L11, U11] = LU_recursive(A11, l);
+        U11_inv = inversion(U11, l);
+        L21 = matmul(A21, U11_inv, l);
+        L11_inv = inversion(L11, l);
+        U12 = matmul(L11_inv, A12, l);
+        L22 = A22 - matmul(matmul(A21, U11_inv, l), matmul(L11_inv, A12, l), l);
+        [L22, U22] = LU_recursive(L22, l);
+    
+        L_zeros = zeros(size(L11, 1), size(L22, 2));
+        U_zeros = zeros(size(U22, 1), size(U11, 2));
+    
+        L = [L11 , L_zeros; L21, L22];
+        U = [U11, U12; U_zeros, U22];
 
-    A11 = A(1:fix(n/2), 1:fix(n/2));
-    A12 = A(1:fix(n/2), fix(n/2)+1:end);
-    A21 = A(fix(n/2)+1:end, 1:fix(n/2));
-    A22 = A(fix(n/2)+1:end, fix(n/2)+1:end);
-
-    [L11, U11] = LU_recursive(A11, l);
-    U11_inv = inversion(U11, l);
-    L21 = matmul(A21, U11_inv, l);
-    L11_inv = inversion(L11, l);
-    U12 = matmul(L11_inv, A12, l);
-    L22 = A22 - matmul(matmul(A21, U11_inv, l), matmul(L11_inv, A12, l), l);
-    [L22, U22] = LU_recursive(L22, l);
-
-    L_zeros = zeros(size(L11, 1), size(L22, 2));
-    U_zeros = zeros(size(U22, 1), size(U11, 2));
-
-    L = [L11 , L_zeros; L21, L22];
-    U = [U11, U12; U_zeros, U22];
-
+        op(index, op_index) = op(index, op_index) + (n/2)*(n/2);
     end
 end
 
@@ -220,7 +216,7 @@ function C = classic_matmul(A, B)
         end
     end
 
-    % op(index, op_index) = op(index, op_index) + 2*n*k*m;
+    op(index, op_index) = op(index, op_index) + 2*n*k*m;
 end
 
 % Binet matrix recursive multiplication
