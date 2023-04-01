@@ -3,7 +3,7 @@ function main()
     fig = figure;
 
     min_size = 1;
-    max_size = 11;
+    max_size = 8;
     num_rep = 5;
     n = max_size - min_size + 1;
     l = [6];
@@ -30,7 +30,7 @@ function main()
 
         loglog(sizes, mean, 's', 'MarkerFaceColor', newcolors(i,:), 'DisplayName', ['l = ', num2str(2^l(i))]);
         hold on;
-
+        loglog(sizes, results(:, 3), 's', 'MarkerFaceColor', newcolors(2,:), 'DisplayName', ['l = ', num2str(2^l(i))]);
         op_index = op_index + 1;
     end
 
@@ -65,7 +65,7 @@ function main()
     saveas(fig, 'Float results.svg');
 end
 
-% Function for measuring matrix inversion time
+% Function for measuring matrix LU factorization time
 function [sizes, results] = timer(min_size, max_size, l, multiplier, num_rep, seed)
 
     global index;
@@ -79,23 +79,30 @@ function [sizes, results] = timer(min_size, max_size, l, multiplier, num_rep, se
     size = min_size;
 
     while size <= max_size
-        inversion_time = [];
+        lu_time = [];
+        matlab_lu_time = [];
 
         for i = 1:num_rep
             A = rand(size);
 
             tic
-            B = inversion(A, l);
-            inversion_time(end+1) = toc;
-            
-            if size <= 256
-                assert(all(all(abs(eye(size) - (A*B)) < 1e-3)));
-            end
+            [L, U] = LU_recursive(A, l);
+            lu_time(end+1) = toc;
+
+            % measuring time of Matlab lu function
+            tic
+            lu(A);
+            matlab_lu_time(end + 1) = toc;
+
+             if size <= 256
+                 assert(all(all(abs(L*U - A) < 1e-3)));
+             end
         end
 
-        results(end+1, :) = [mean(inversion_time), std(inversion_time)];
-
+        results(end+1, 1:2) = [mean(lu_time), std(lu_time)];
+        results(end, 3:4) = [mean(matlab_lu_time), std(matlab_lu_time)];
         sizes(end+1) = size;
+        
         size = size * multiplier;
 
         index = index + 1;
@@ -103,11 +110,11 @@ function [sizes, results] = timer(min_size, max_size, l, multiplier, num_rep, se
 end
 
 % recursive LU factorization
-function [L, U] = LU_recurisve(A, l)
+function [L, U] = LU_recursive(A, l)
 
-    global op;
-    global op_index;
-    global index;
+    % global op;
+    % global op_index;
+    % global index;
 
     n = size(A, 1);
     
@@ -116,7 +123,7 @@ function [L, U] = LU_recurisve(A, l)
         L = [1];
         U = [A];
 
-        op(index, op_index) = op(index, op_index) + 1;
+        % op(index, op_index) = op(index, op_index) + 1;
 
     else
 
@@ -125,13 +132,13 @@ function [L, U] = LU_recurisve(A, l)
     A21 = A(fix(n/2)+1:end, 1:fix(n/2));
     A22 = A(fix(n/2)+1:end, fix(n/2)+1:end);
 
-    [L11, U11] = LU_recursive(A11);
-    U11_inv = inv(U11);
-    L21 = A21 * U11_inv;
-    L11_inv = inv(L11);
-    U12 = L11_inv * A12;
-    L22 = A22 - A21 * U11_inv * L11_inv * A12;
-    [L22, U22] = LU_recursive(L22);
+    [L11, U11] = LU_recursive(A11, l);
+    U11_inv = inversion(U11, l);
+    L21 = matmul(A21, U11_inv, l);
+    L11_inv = inversion(L11, l);
+    U12 = matmul(L11_inv, A12, l);
+    L22 = A22 - matmul(matmul(A21, U11_inv, l), matmul(L11_inv, A12, l), l);
+    [L22, U22] = LU_recursive(L22, l);
 
     L_zeros = zeros(size(L11, 1), size(L22, 2));
     U_zeros = zeros(size(U22, 1), size(U11, 2));
@@ -157,10 +164,10 @@ function B = inversion(A, l)
 
         op(index, op_index) = op(index, op_index) + 1;
     else
-        A11 = A(1:n/2, 1:n/2);
-        A12 = A(1:n/2, n/2+1:end);
-        A21 = A(n/2+1:end, 1:n/2);
-        A22 = A(n/2+1:end, n/2+1:end);
+        A11 = A(1:fix(n/2), 1:fix(n/2));
+        A12 = A(1:fix(n/2), fix(n/2)+1:end);
+        A21 = A(fix(n/2)+1:end, 1:fix(n/2));
+        A22 = A(fix(n/2)+1:end, fix(n/2)+1:end);
 
         A11_inv = inversion(A11, l);
         A12_inv = inversion(A12, l);
@@ -213,7 +220,7 @@ function C = classic_matmul(A, B)
         end
     end
 
-    op(index, op_index) = op(index, op_index) + 2*n*k*m;
+    % op(index, op_index) = op(index, op_index) + 2*n*k*m;
 end
 
 % Binet matrix recursive multiplication
@@ -224,16 +231,16 @@ function C = binet_matmul(A, B, l)
     global index;
 
     [n, m] = size(A);
-    A11 = A(1:n/2, 1:m/2);
-    A12 = A(1:n/2, m/2+1:end);
-    A21 = A(n/2+1:end, 1:m/2);
-    A22 = A(n/2+1:end, m/2+1:end);
+    A11 = A(1:fix(n/2), 1:fix(n/2));
+    A12 = A(1:fix(n/2), fix(n/2)+1:end);
+    A21 = A(fix(n/2)+1:end, 1:fix(n/2));
+    A22 = A(fix(n/2)+1:end, fix(n/2)+1:end);
 
     [m, k] = size(B);
-    B11 = B(1:m/2, 1:k/2);
-    B12 = B(1:m/2, k/2+1:end);
-    B21 = B(m/2+1:end, 1:k/2);
-    B22 = B(m/2+1:end, k/2+1:end);
+    B11 = B(1:fix(m/2), 1:fix(k/2));
+    B12 = B(1:fix(m/2), fix(k/2)+1:end);
+    B21 = B(fix(m/2)+1:end, 1:fix(k/2));
+    B22 = B(fix(m/2)+1:end, fix(k/2)+1:end);
 
 
     C = [matmul(A11, B11, l) + matmul(A12, B21, l), matmul(A11, B12, l) + matmul(A12, B22, l);
