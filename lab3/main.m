@@ -3,7 +3,7 @@ function main()
     fig = figure;
 
     min_size = 1;
-    max_size = 8;
+    max_size = 11;
     num_rep = 5;
     n = max_size - min_size + 1;
     l = [6];
@@ -25,12 +25,12 @@ function main()
     % time plots
     for i = 1:1:size(l, 2)
         [sizes, results] = timer(2^min_size, 2^max_size, 2^l(i), 2, num_rep, 42);
-        mean = results(:, 1);
-        std = results(:, 2);
+        lu_mean = results(:, 1);
+        matlab_mean = results(:, 3);
 
-        loglog(sizes, mean, 's', 'MarkerFaceColor', newcolors(i,:), 'DisplayName', ['l = ', num2str(2^l(i))]);
+        loglog(sizes, lu_mean, 's', 'MarkerFaceColor', newcolors(i,:), 'DisplayName', 'Recursive LU');
         hold on;
-        loglog(sizes, results(:, 3), 's', 'MarkerFaceColor', newcolors(2,:), 'DisplayName', ['l = ', num2str(2^l(i))]);
+        loglog(sizes, matlab_mean, 's', 'MarkerFaceColor', newcolors(i+1,:), 'DisplayName', 'Matlab LU');
         op_index = op_index + 1;
     end
 
@@ -39,7 +39,8 @@ function main()
     xlim([sizes(1), sizes(end)]);
     xticks(sizes);
     xlabel('Matrix size (k x k)');
-    ylabel('Time [s]');
+    ylabel('Time [s]');    
+    legend('Location', 'northwest');
 
     grid on;
     set(gca, 'XMinorGrid', 'off', 'YMinorGrid', 'off');
@@ -49,7 +50,7 @@ function main()
 
     % floating-point operations plots
     for i = 1:1:size(l, 2)
-        loglog(sizes, op(:, i), 's', 'MarkerFaceColor', newcolors(i,:), 'DisplayName', ['l = ', num2str(2^l(i))]);
+        loglog(sizes, op(:, i), 's', 'MarkerFaceColor', newcolors(i,:));
         hold on;
     end
 
@@ -70,6 +71,9 @@ function [sizes, results] = timer(min_size, max_size, l, multiplier, num_rep, se
 
     global index;
     index = 1;
+
+    fileID = fopen('det.csv','w');
+    fprintf(fileID, 'method,size,det\n');
 
     rng(seed);
 
@@ -97,6 +101,9 @@ function [sizes, results] = timer(min_size, max_size, l, multiplier, num_rep, se
              if size <= 256
                  assert(all(all(abs(L*U - A) < 1e-3)));
              end
+
+             fprintf(fileID, 'LU,%d,%f\n', size, prod(diag(L)) * prod(diag(U)));
+             fprintf(fileID, 'Matlab,%d,%f\n', size, det(A));
         end
 
         results(end+1, 1:2) = [mean(lu_time), std(lu_time)];
@@ -107,6 +114,8 @@ function [sizes, results] = timer(min_size, max_size, l, multiplier, num_rep, se
 
         index = index + 1;
     end
+
+    fclose(fileID);
 end
 
 % recursive LU factorization
